@@ -162,6 +162,7 @@ function render(newId) {
   $('guess').placeholder = over ? 'Partida encerrada' : 'Digite um país (ex.: Alemanha)';
   renderBoard(false);
   renderResult();
+  renderTrivia();
 }
 
 function stopsHtml(path) {
@@ -174,7 +175,83 @@ function shareText() {
   const head = S.mode === 'daily' ? 'GeoGame · Desafio nº ' + dayNumber(S.date) : 'GeoGame · Jogo livre';
   const squares = S.guesses.map(id => TIER_EMOJI[L.tier(G, p.a, p.b, id)]).join('');
   const tail = S.status === 'won' ? S.guesses.length + ' palpites · mínimo ' + p.k : 'solução revelada';
-  return head + '\n' + nm(p.a) + ' → ' + nm(p.b) + '\n' + squares + '\n' + tail + (S.hints.length ? ' · ' + S.hints.length + ' dica(s)' : '');
+  const t = S.trivia && S.trivia.items && S.trivia.cur >= S.trivia.items.length ? '\nTrivia: ' + S.trivia.items.filter(triviaRight).length + '/' + S.trivia.items.length : '';
+  return head + '\n' + nm(p.a) + ' → ' + nm(p.b) + '\n' + squares + '\n' + tail + (S.hints.length ? ' · ' + S.hints.length + ' dica(s)' : '') + t;
+}
+
+// ---------- trivia do fim de jogo ----------
+const QUIZ = window.GEO_QUIZ || {};
+const THEMES = { H: 'História', G: 'Geografia', T: 'Turismo', C: 'Cinema', E: 'Economia', P: 'Geopolítica' };
+function shuffled(arr, r) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function triviaRoute() {
+  const p = S.puzzle;
+  return (S.status === 'won' ? L.pathWithin(G, p.a, p.b, S.guesses) : L.bestShortest(G, p.a, p.b, S.guesses).path) || [];
+}
+function buildTrivia() {
+  const ids = triviaRoute().filter(id => QUIZ[id] && QUIZ[id].length);
+  const r = L.rng('trivia-' + S.puzzle.seed + '-' + ids.join(''));
+  const themes = shuffled(Object.keys(THEMES), r);
+  const items = ids.map((id, i) => {
+    const qs = QUIZ[id];
+    let cand = qs.map((q, k) => k).filter(k => qs[k][0] === themes[i % themes.length]);
+    if (!cand.length) cand = qs.map((q, k) => k);
+    return { id, k: cand[Math.floor(r() * cand.length)], order: shuffled([1, 2, 3, 4], r), pick: null };
+  });
+  S.trivia = { items, cur: 0, started: false };
+}
+const triviaRight = it => it.pick === 1;
+function renderTrivia() {
+  const box = $('trivia');
+  if (!isOver()) { box.hidden = true; box.innerHTML = ''; return; }
+  if (!S.trivia || !S.trivia.items) buildTrivia();
+  const T = S.trivia, n = T.items.length;
+  if (!n) { box.hidden = true; return; }
+  box.hidden = false;
+  if (!T.started) {
+    box.innerHTML = '<div class="tv-head"><span class="sub">Trivia da rota</span><h2>' + n + ' perguntas, uma por país</h2></div>' +
+      '<p>Teste o que você sabe sobre os países da rota: ' + T.items.map(it => esc(nm(it.id))).join(', ') + '.</p>' +
+      '<div class="actions"><button class="btn primary" type="button" id="tv-start">Começar a trivia</button></div>';
+    $('tv-start').addEventListener('click', () => { T.started = true; persist(); renderTrivia(); showTriviaCountry(); });
+    return;
+  }
+  if (T.cur >= n) {
+    const ok = T.items.filter(triviaRight).length;
+    const verdict = ok === n ? 'Gabaritou!' : ok >= n * 0.7 ? 'Mandou bem!' : ok >= n * 0.4 ? 'Bom começo.' : 'Hora de estudar a ficha dos países.';
+    box.innerHTML = '<div class="tv-head"><span class="sub">Trivia da rota</span><h2>' + ok + ' de ' + n + ' · ' + verdict + '</h2></div>' +
+      '<ol class="tv-recap">' + T.items.map(it => {
+        const q = QUIZ[it.id][it.k];
+        return '<li class="' + (triviaRight(it) ? 'ok' : 'no') + '"><span class="tv-mark">' + (triviaRight(it) ? '✓' : '✗') + '</span><span><b>' + flag(it.id) + ' ' + esc(nm(it.id)) + '</b> · ' + esc(q[1]) + ' <em>' + esc(q[2]) + '</em></span></li>';
+      }).join('') + '</ol>' +
+      '<div class="actions"><button class="btn" type="button" id="tv-share">Copiar resultado</button></div>';
+    $('tv-share').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(shareText()); $('tv-share').textContent = 'Copiado!'; }
+      catch (e) { setMsg(shareText().replace(/\n/g, ' · ')); $('tv-share').textContent = 'Texto exibido acima'; }
+    });
+    return;
+  }
+  const it = T.items[T.cur];
+  const q = QUIZ[it.id][it.k];
+  const answered = it.pick !== null;
+  const opts = it.order.map(o => {
+    let cls = 'tv-opt';
+    if (answered && o === 1) cls += ' right';
+    else if (answered && o === it.pick) cls += ' wrong';
+    return '<button type="button" class="' + cls + '" data-o="' + o + '"' + (answered ? ' disabled' : '') + '>' + esc(q[o + 1]) + '</button>';
+  }).join('');
+  box.innerHTML = '<div class="tv-head"><span class="sub">Trivia da rota · pergunta ' + (T.cur + 1) + ' de ' + n + '</span>' +
+    '<div class="tv-dots">' + T.items.map((x, i) => '<i class="' + (x.pick === null ? (i === T.cur ? 'cur' : '') : triviaRight(x) ? 'ok' : 'no') + '"></i>').join('') + '</div></div>' +
+    '<p class="tv-country">' + flag(it.id) + ' <b>' + esc(nm(it.id)) + '</b> <span class="tv-theme">' + THEMES[q[0]] + '</span></p>' +
+    '<h3 class="tv-q">' + esc(q[1]) + '</h3><div class="tv-opts">' + opts + '</div>' +
+    (answered ? '<p class="tv-exp ' + (triviaRight(it) ? 'ok' : 'no') + '"><b>' + (triviaRight(it) ? 'Certo!' : 'Não foi dessa vez.') + '</b> ' + esc(q[6]) + '</p>' +
+      '<div class="actions"><button class="btn primary" type="button" id="tv-next">' + (T.cur + 1 < n ? 'Próxima pergunta' : 'Ver resultado') + '</button></div>' : '');
+  box.querySelectorAll('.tv-opt').forEach(b => b.addEventListener('click', () => { it.pick = +b.dataset.o; persist(); renderTrivia(); $('tv-next') && $('tv-next').focus(); }));
+  const nx = $('tv-next');
+  if (nx) nx.addEventListener('click', () => { T.cur++; persist(); renderTrivia(); if (T.cur < n) showTriviaCountry(); box.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' }); });
+}
+function showTriviaCountry() {
+  const T = S.trivia; if (!T || T.cur >= T.items.length) return;
+  const id = T.items[T.cur].id;
+  MapView.focus([id], true); MapView.select(id);
 }
 
 function renderResult() {

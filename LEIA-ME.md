@@ -1,6 +1,6 @@
 # GeoGame Rotas
 
-Jogo de adivinhar caminhos entre países por fronteiras terrestres, com fichas de clima, demografia, economia, história e política dos 198 países.
+Jogo de adivinhar caminhos entre países por fronteiras terrestres, com fichas de clima, demografia, economia, história e política dos 198 países e uma trivia ao final de cada partida (uma pergunta por país da rota, num banco de 2.970 perguntas).
 
 ## Publicar
 
@@ -28,8 +28,9 @@ A pasta `fonte/` tem os arquivos usados para montar o `index.html`:
 | `src/data.js` | Países (nome, capital, continente, apelidos) e a lista de fronteiras |
 | `src/stats.js` | População, área e PIB de cada país, com as fontes |
 | `src/info/*.txt` | Textos das fichas, por região (linhas `C:` clima, `D:` demografia, `E:` economia, `H:` história, `P:` política) |
+| `src/quiz/*.txt` | Banco da trivia, por região: 15 perguntas por país, uma por linha (`TEMA\|pergunta\|certa\|errada1\|errada2\|errada3\|explicação`; temas H história, G geografia, T turismo, C cinema/cultura, E economia, P geopolítica) |
 | `src/logic.js` | Regras do jogo: distâncias, sorteio, cores, dicas |
-| `src/app.js` | Interface, mapa, ficha e modo desafio |
+| `src/app.js` | Interface, mapa, ficha, modo desafio e trivia |
 | `src/template.html` | HTML e estilos |
 | `build/d3.min.js` | Partes da biblioteca d3 usadas no mapa |
 | `build.mjs` | Script que junta tudo em `index.html` |

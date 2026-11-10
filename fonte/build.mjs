@@ -16,7 +16,20 @@ for (const f of fs.readdirSync(new URL('./src/info/', import.meta.url)).filter(f
   }
 }
 fs.writeFileSync(new URL('./build/info.json', import.meta.url), JSON.stringify(INFO));
-const parts = { D3: rd('./build/d3.min.js'), DATA: rd('./src/data.js'), LOGIC: rd('./src/logic.js'), STATS: rd('./src/stats.js'), INFO: JSON.stringify(INFO), APP: rd('./src/app.js') };
+// trivia: src/quiz/*.txt  (@ID, depois linhas TEMA|pergunta|certa|errada|errada|errada|explicação)
+const QUIZ = {};
+for (const f of fs.readdirSync(new URL('./src/quiz/', import.meta.url)).filter(f => f.endsWith('.txt')).sort()) {
+  let cur = null;
+  for (const raw of rd('./src/quiz/' + f).split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    if (line.startsWith('@')) { cur = line.slice(1).trim(); if (QUIZ[cur]) throw new Error('trivia duplicada ' + cur); QUIZ[cur] = []; continue; }
+    const parts = line.split('|');
+    if (!cur || parts.length !== 7 || !'HGTCEP'.includes(parts[0])) throw new Error('trivia inválida em ' + f + ': ' + line.slice(0, 80));
+    QUIZ[cur].push(parts.map(x => x.trim()));
+  }
+}
+const parts = { D3: rd('./build/d3.min.js'), DATA: rd('./src/data.js'), LOGIC: rd('./src/logic.js'), STATS: rd('./src/stats.js'), INFO: JSON.stringify(INFO), QUIZ: JSON.stringify(QUIZ), APP: rd('./src/app.js') };
 for (const [k, v] of Object.entries(parts)) html = html.replace(`<!--${k}-->`, () => safe(v));
 fs.writeFileSync(new URL('./index.html', import.meta.url), html);
-console.log('index.html', (html.length / 1024).toFixed(1), 'KB', '· fichas:', Object.keys(INFO).length);
+console.log('index.html', (html.length / 1024).toFixed(1), 'KB', '· fichas:', Object.keys(INFO).length, '· trivia:', Object.keys(QUIZ).length, 'países,', Object.values(QUIZ).reduce((a, b) => a + b.length, 0), 'perguntas');

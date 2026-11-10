@@ -138,6 +138,31 @@ button { cursor: pointer; }
 .route .arr { color: var(--muted); }
 .sub { font: 500 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 
+/* trivia */
+.trivia { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--board-ink); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 10px; }
+.trivia h2 { margin: 2px 0 0; font: 800 24px/1.05 var(--font-display); text-transform: uppercase; letter-spacing: .02em; text-wrap: balance; }
+.trivia p { margin: 0; }
+.tv-head { display: grid; gap: 6px; }
+.tv-dots { display: flex; gap: 5px; }
+.tv-dots i { width: 18px; height: 6px; border-radius: 3px; background: var(--line); }
+.tv-dots i.cur { background: var(--ink); } .tv-dots i.ok { background: var(--t0); } .tv-dots i.no { background: var(--t3); }
+.tv-country { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.tv-theme { font: 500 10px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; background: var(--board); color: var(--board-ink); }
+.tv-q { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 600; text-wrap: balance; }
+.tv-opts { display: grid; gap: 6px; }
+.tv-opt { text-align: left; border: 1.5px solid var(--line); background: var(--paper); border-radius: 8px; padding: 10px 12px; font-size: 15px; line-height: 1.3; }
+.tv-opt:not(:disabled):hover { border-color: var(--ink); }
+.tv-opt:disabled { cursor: default; opacity: .75; }
+.tv-opt.right { border-color: var(--t0); background: color-mix(in srgb, var(--t0) 18%, var(--panel)); opacity: 1; font-weight: 600; }
+.tv-opt.wrong { border-color: var(--t3); background: color-mix(in srgb, var(--t3) 14%, var(--panel)); opacity: 1; }
+.tv-exp { font-size: 14px; line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: var(--paper); border-left: 4px solid var(--c); }
+.tv-exp.ok { --c: var(--t0); } .tv-exp.no { --c: var(--t3); }
+.tv-recap { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; line-height: 1.4; }
+.tv-recap li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; }
+.tv-recap em { font-style: normal; font-weight: 600; }
+.tv-recap .tv-mark { font-weight: 700; }
+.tv-recap li.ok .tv-mark { color: var(--t0); } .tv-recap li.no .tv-mark { color: var(--t3); }
+
 /* mapa */
 #map { width: 100%; height: 100%; display: block; touch-action: none; }
 .sphere { fill: var(--ocean); }
@@ -267,6 +292,7 @@ button { cursor: pointer; }
 
     <section class="list-area" aria-label="Seus palpites">
       <div class="result" id="result" hidden></div>
+      <div class="trivia" id="trivia" hidden aria-live="polite"></div>
       <ol class="guesses" id="guesses"></ol>
       <p class="empty" id="empty">Nenhum palpite ainda. Os países aparecem aqui e no mapa, coloridos pela distância até a rota mais curta.</p>
       <div class="actions">
@@ -305,6 +331,8 @@ button { cursor: pointer; }
     </ul>
     <h3>Dicas</h3>
     <p>“Pedir dica” mostra a inicial do próximo país que falta na rota e com quem ele faz fronteira.</p>
+    <h3>Trivia da rota</h3>
+    <p>Ao fim da partida, responda uma pergunta de múltipla escolha sobre cada país da rota, de partida a chegada, com temas de história, geografia, turismo, cinema, economia e geopolítica. No desafio do dia, as perguntas são as mesmas para todos.</p>
     <h3>Ficha dos países</h3>
     <p>Clique em qualquer país do mapa, descoberto ou não, para ler sobre clima e relevo, demografia, economia, história e política. Os nomes dos vizinhos aparecem ao fim da partida.</p>
     <p>Com o <b>modo desafio</b> ligado (padrão), a ficha de um país que você ainda não descobriu esconde o nome, a bandeira, a capital e os gentílicos, e o texto vira um conjunto de pistas. Tudo é revelado quando você acerta o país ou quando a partida termina.</p>
@@ -317,6 +345,7 @@ button { cursor: pointer; }
 <script><!--LOGIC--></script>
 <script><!--STATS--></script>
 <script>window.GEO_INFO = <!--INFO-->;</script>
+<script>window.GEO_QUIZ = <!--QUIZ-->;</script>
 <script><!--APP--></script>
 </body>
 </html>
