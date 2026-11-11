@@ -202,13 +202,22 @@ function buildTrivia() {
   S.trivia = { items, cur: 0, started: false };
 }
 const triviaRight = it => it.pick === 1;
+let tvOpen = false;
+function openTrivia() { tvOpen = true; renderTrivia(); const f = $('tvpop').querySelector('button.tv-opt:not([disabled]), #tv-start, #tv-next, #tv-done'); f && f.focus(); }
+function closeTrivia() { tvOpen = false; renderTrivia(); }
 function renderTrivia() {
-  const box = $('trivia');
-  if (!isOver()) { box.hidden = true; box.innerHTML = ''; return; }
+  const box = $('trivia'), inl = $('tv-inline');
+  if (!isOver()) { box.innerHTML = ''; inl.hidden = true; inl.innerHTML = ''; tvOpen = false; $('tvpop').hidden = true; return; }
   if (!S.trivia || !S.trivia.items) buildTrivia();
   const T = S.trivia, n = T.items.length;
-  if (!n) { box.hidden = true; return; }
-  box.hidden = false;
+  if (!n) { inl.hidden = true; $('tvpop').hidden = true; return; }
+  $('tvpop').hidden = !tvOpen;
+  inl.hidden = tvOpen;
+  if (!tvOpen) {
+    const lbl = !T.started ? 'Fazer o trivia da rota' : T.cur >= n ? 'Ver resultado do trivia' : 'Continuar o trivia';
+    inl.innerHTML = '<button class="btn primary" type="button" id="tv-open">' + lbl + '</button>';
+    $('tv-open').addEventListener('click', () => openTrivia());
+  }
   if (!T.started) {
     box.innerHTML = '<div class="tv-head"><span class="sub">Trivia da rota</span><h2>' + n + ' perguntas, uma por país</h2></div>' +
       '<p>Teste o que você sabe sobre os países da rota: ' + T.items.map(it => esc(nm(it.id))).join(', ') + '.</p>' +
@@ -224,7 +233,8 @@ function renderTrivia() {
         const q = QUIZ[it.id][it.k];
         return '<li class="' + (triviaRight(it) ? 'ok' : 'no') + '"><span class="tv-mark">' + (triviaRight(it) ? '✓' : '✗') + '</span><span><b>' + flag(it.id) + ' ' + esc(nm(it.id)) + '</b> · ' + esc(q[1]) + ' <em>' + esc(q[2]) + '</em></span></li>';
       }).join('') + '</ol>' +
-      '<div class="actions"><button class="btn" type="button" id="tv-share">Copiar resultado</button></div>';
+      '<div class="actions"><button class="btn" type="button" id="tv-share">Copiar resultado</button><button class="btn primary" type="button" id="tv-done">Fechar</button></div>';
+    $('tv-done').addEventListener('click', closeTrivia);
     $('tv-share').addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(shareText()); $('tv-share').textContent = 'Copiado!'; }
       catch (e) { setMsg(shareText().replace(/\n/g, ' · ')); $('tv-share').textContent = 'Texto exibido acima'; }
@@ -248,7 +258,7 @@ function renderTrivia() {
       '<div class="actions"><button class="btn primary" type="button" id="tv-next">' + (T.cur + 1 < n ? 'Próxima pergunta' : 'Ver resultado') + '</button></div>' : '');
   box.querySelectorAll('.tv-opt').forEach(b => b.addEventListener('click', () => { it.pick = +b.dataset.o; persist(); renderTrivia(); $('tv-next') && $('tv-next').focus(); }));
   const nx = $('tv-next');
-  if (nx) nx.addEventListener('click', () => { T.cur++; persist(); renderTrivia(); if (T.cur < n) showTriviaCountry(); box.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' }); });
+  if (nx) nx.addEventListener('click', () => { T.cur++; persist(); renderTrivia(); if (T.cur < n) showTriviaCountry(); $('tvpop').querySelector('.sheet').scrollTop = 0; });
 }
 function showTriviaCountry() {
   const T = S.trivia; if (!T || T.cur >= T.items.length) return;
@@ -327,7 +337,7 @@ function showEndPop(won) {
   const mk = (txt, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = txt; b.addEventListener('click', fn); box.appendChild(b); return b; };
   let first;
   const go = el => { hideEndPop(); if (el) el.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' }); };
-  if (n) first = mk('Iniciar trivia', 'primary', () => { S.trivia.started = true; persist(); renderTrivia(); showTriviaCountry(); go($('trivia')); });
+  if (n) first = mk('Iniciar trivia', 'primary', () => { S.trivia.started = true; persist(); hideEndPop(); openTrivia(); showTriviaCountry(); });
   const r = mk('Ver resultados', n ? '' : 'primary', () => go($('result')));
   $('endpop').hidden = false; (first || r).focus();
 }
@@ -607,7 +617,9 @@ $('reveal').addEventListener('click', giveUp);
 $('help-open').addEventListener('click', () => { $('help').hidden = false; $('help-close').focus(); });
 $('help-close').addEventListener('click', () => { $('help').hidden = true; });
 $('help').addEventListener('click', e => { if (e.target === $('help')) $('help').hidden = true; });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('help').hidden = true; hideEndPop(); closeCard(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('help').hidden = true; hideEndPop(); if (tvOpen) closeTrivia(); closeCard(); } });
+$('tvpop-close').addEventListener('click', closeTrivia);
+$('tvpop').addEventListener('click', e => { if (e.target === $('tvpop')) closeTrivia(); });
 $('endpop').addEventListener('click', e => { if (e.target === $('endpop')) hideEndPop(); });
 (function () {
   const st = L.stats(G);
