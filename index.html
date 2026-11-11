@@ -218,6 +218,17 @@ button { cursor: pointer; }
 .sheet ul { padding-left: 18px; display: grid; gap: 4px; }
 .sheet .x { position: absolute; right: 12px; top: 12px; border: 0; background: transparent; font-size: 22px; color: var(--muted); }
 
+/* comemoração */
+#fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 70; }
+#endpop { z-index: 60; }
+.endpop { text-align: center; justify-items: center; max-width: 420px; }
+.endpop .big { font-size: 44px; line-height: 1; }
+.endpop .actions { display: grid; gap: 8px; width: 100%; }
+.endpop .btn { width: 100%; padding: 12px 16px; font-size: 16px; }
+@keyframes popin { from { transform: translateY(14px) scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
+.endpop { animation: popin .35s cubic-bezier(.2,.9,.3,1.2); }
+@media (prefers-reduced-motion: reduce) { .endpop { animation: none; } }
+
 @media (max-width: 860px) {
   .app { height: auto; min-height: 100%; }
   .main { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; grid-template-areas: "board" "play" "map" "list"; }
@@ -307,6 +318,16 @@ button { cursor: pointer; }
       </div>
     </section>
   </main>
+</div>
+
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="overlay" id="endpop" hidden>
+  <div class="sheet endpop" role="dialog" aria-modal="true" aria-labelledby="endpop-title">
+    <div class="big" id="endpop-emoji" aria-hidden="true">🎉</div>
+    <h2 id="endpop-title"></h2>
+    <p id="endpop-text"></p>
+    <div class="actions" id="endpop-actions"></div>
+  </div>
 </div>
 
 <div class="overlay" id="help" hidden>
@@ -1135,7 +1156,7 @@ function submit(id) {
   render(id);
   MapView.paint(id);
   refreshCard();
-  if (S.status === 'won') MapView.celebrate(route);
+  if (S.status === 'won') { MapView.celebrate(route); endFlow(true); }
 }
 
 function useHint() {
@@ -1154,6 +1175,7 @@ function giveUp() {
   if (isOver()) return;
   S.status = 'revealed'; persist(); setMsg('');
   render(); MapView.paint(); MapView.fit(true); refreshCard();
+  endFlow(false);
 }
 
 function recordStats() {
@@ -1187,6 +1209,7 @@ function render(newId) {
   renderBoard(false);
   renderResult();
   renderTrivia();
+  if (!over) hideEndPop();
 }
 
 function stopsHtml(path) {
@@ -1276,6 +1299,87 @@ function showTriviaCountry() {
   const T = S.trivia; if (!T || T.cur >= T.items.length) return;
   const id = T.items[T.cur].id;
   MapView.focus([id], true); MapView.select(id);
+}
+
+// ---------- comemoração e pop-up de fim de jogo ----------
+let fxRaf = 0, fxTimer = 0, popTimer = 0;
+const FX_COLORS = ['#ffd23f', '#ff5964', '#3ddc97', '#4cc9f0', '#b980f0', '#ff9f1c', '#ffffff'];
+function celebrateFx() {
+  if (reduceMotion) return;
+  const cv = $('fx'), ctx = cv.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = window.innerWidth, H = window.innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cancelAnimationFrame(fxRaf); clearTimeout(fxTimer);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = () => FX_COLORS[Math.floor(Math.random() * FX_COLORS.length)];
+  const sparks = [], conf = [];
+  function burst(x, y) {
+    const col = pick(), n = 46;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + rnd(-.1, .1), sp = rnd(2, 6.5);
+      sparks.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, life: 1, dec: rnd(.012, .022), c: Math.random() < .25 ? pick() : col, r: rnd(1.5, 3) });
+    }
+  }
+  function streamers(fromLeft) {
+    for (let i = 0; i < 34; i++) {
+      const ang = (fromLeft ? rnd(-70, -35) : rnd(-145, -110)) * Math.PI / 180, sp = rnd(9, 17);
+      conf.push({ x: fromLeft ? -10 : W + 10, y: H * rnd(.55, .9), vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, w: rnd(6, 11), h: rnd(3, 6), rot: rnd(0, 6.28), vr: rnd(-.3, .3), c: pick(), life: 1 });
+    }
+  }
+  function rain() {
+    for (let i = 0; i < 40; i++) conf.push({ x: rnd(0, W), y: rnd(-40, -5), vx: rnd(-1.5, 1.5), vy: rnd(1.5, 4), w: rnd(6, 10), h: rnd(3, 6), rot: rnd(0, 6.28), vr: rnd(-.2, .2), c: pick(), life: 1 });
+  }
+  const t0 = performance.now();
+  const sched = [[0, () => { streamers(true); streamers(false); burst(W * .3, H * .3); }], [350, () => burst(W * .7, H * .25)], [700, () => { burst(W * .5, H * .2); rain(); }],
+    [1100, () => burst(W * .2, H * .35)], [1400, () => burst(W * .8, H * .35)], [1800, () => { burst(W * .4, H * .25); rain(); }], [2200, () => burst(W * .6, H * .3)]];
+  let si = 0;
+  function frame(now) {
+    const el = now - t0;
+    while (si < sched.length && el >= sched[si][0]) sched[si++][1]();
+    ctx.clearRect(0, 0, W, H);
+    for (const p of sparks) {
+      p.x += p.vx; p.y += p.vy; p.vy += .06; p.vx *= .985; p.life -= p.dec;
+      if (p.life <= 0) continue;
+      ctx.globalAlpha = Math.max(p.life, 0); ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill();
+    }
+    for (const p of conf) {
+      p.x += p.vx; p.y += p.vy; p.vy += .22; p.vx *= .985; p.vy *= .99; p.rot += p.vr;
+      if (p.y > H + 20) p.life = 0;
+      if (p.life <= 0) continue;
+      ctx.globalAlpha = 1; ctx.fillStyle = p.c;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    const alive = sparks.some(p => p.life > 0) || conf.some(p => p.life > 0);
+    if (si < sched.length || alive) fxRaf = requestAnimationFrame(frame);
+    else ctx.clearRect(0, 0, W, H);
+  }
+  fxRaf = requestAnimationFrame(frame);
+  fxTimer = setTimeout(() => { cancelAnimationFrame(fxRaf); ctx.clearRect(0, 0, W, H); }, 9000);
+}
+function hideEndPop() { clearTimeout(popTimer); $('endpop').hidden = true; }
+function showEndPop(won) {
+  const T = S.trivia, n = T && T.items ? T.items.length : 0;
+  const p = S.puzzle, extra = S.guesses.length - p.k;
+  $('endpop-emoji').textContent = won ? (extra === 0 ? '🏆' : '🎉') : '🗺️';
+  $('endpop-title').textContent = won ? (extra === 0 ? 'Rota perfeita!' : 'Rota completa!') : 'Solução revelada';
+  $('endpop-text').textContent = n
+    ? (won ? 'Você ligou os dois países. ' : '') + 'Quer testar o que sabe sobre os ' + n + ' países da rota? São ' + n + ' perguntas, uma por país.'
+    : 'Veja como ficou a sua rota.';
+  const box = $('endpop-actions'); box.innerHTML = '';
+  const mk = (txt, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + cls; b.textContent = txt; b.addEventListener('click', fn); box.appendChild(b); return b; };
+  let first;
+  const go = el => { hideEndPop(); if (el) el.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' }); };
+  if (n) first = mk('Iniciar trivia', 'primary', () => { S.trivia.started = true; persist(); renderTrivia(); showTriviaCountry(); go($('trivia')); });
+  const r = mk('Ver resultados', n ? '' : 'primary', () => go($('result')));
+  $('endpop').hidden = false; (first || r).focus();
+}
+function endFlow(won) {
+  if (won) celebrateFx();
+  clearTimeout(popTimer);
+  popTimer = setTimeout(() => { if (isOver()) showEndPop(won); }, won ? 1100 : 300);
 }
 
 function renderResult() {
@@ -1548,7 +1652,8 @@ $('reveal').addEventListener('click', giveUp);
 $('help-open').addEventListener('click', () => { $('help').hidden = false; $('help-close').focus(); });
 $('help-close').addEventListener('click', () => { $('help').hidden = true; });
 $('help').addEventListener('click', e => { if (e.target === $('help')) $('help').hidden = true; });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('help').hidden = true; closeCard(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('help').hidden = true; hideEndPop(); closeCard(); } });
+$('endpop').addEventListener('click', e => { if (e.target === $('endpop')) hideEndPop(); });
 (function () {
   const st = L.stats(G);
   $('help-stats').textContent = st.countries + ' países no jogo · ' + st.withBorders + ' com fronteira terrestre · ' + st.borders + ' fronteiras mapeadas';

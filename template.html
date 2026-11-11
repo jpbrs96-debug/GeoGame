@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoGame Rotas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Ideia: um painel de partidas de aeroporto (sempre escuro, letras âmbar) ao lado de um mapa de atlas frio e calmo; a cor só aparece onde há palpite. */
+:root {
+  --paper: #eef1f2;
+  --panel: #ffffff;
+  --ink: #15202b;
+  --muted: #5b6874;
+  --line: #d6dde1;
+  --ocean: #d2e0e6;
+  --land: #fbfbf8;
+  --edge: #a7b5bc;
+  --grat: rgba(21, 32, 43, .06);
+  --accent: #1f5fd0;
+  --accent-soft: #dbe7fb;
+  --t0: #2f9e5a; --t1: #e2b91f; --t2: #ec8a2b; --t3: #d4463e;
+  --board: #12181d; --board-ink: #ffbe3b; --board-dim: #8a6a2a; --board-line: #2a3239;
+  --font-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d1216; --panel: #151c22; --ink: #e5ebee; --muted: #93a1ab; --line: #26313a;
+    --ocean: #102029; --land: #27333b; --edge: #4b5a64; --grat: rgba(229, 235, 238, .05);
+    --accent: #5c95f2; --accent-soft: #1b2a44;
+    --t0: #3fb56d; --t1: #e7c43a; --t2: #f09a45; --t3: #e2584f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d1216; --panel: #151c22; --ink: #e5ebee; --muted: #93a1ab; --line: #26313a;
+  --ocean: #102029; --land: #27333b; --edge: #4b5a64; --grat: rgba(229, 235, 238, .05);
+  --accent: #5c95f2; --accent-soft: #1b2a44;
+  --t0: #3fb56d; --t1: #e7c43a; --t2: #f09a45; --t3: #e2584f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.45 var(--font-body); }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-rows: auto 1fr; }
+
+/* topo */
+.top { display: flex; align-items: center; gap: 16px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+.brand { font: 800 26px/1 var(--font-display); letter-spacing: .02em; text-transform: uppercase; display: flex; align-items: baseline; gap: 10px; }
+.brand small { font: 500 12px/1 var(--font-mono); color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.modes { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; margin-left: auto; }
+.modes button { border: 0; background: transparent; padding: 6px 14px; border-radius: 999px; font-weight: 500; color: var(--muted); }
+.modes button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.help-btn { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 6px 14px; font-weight: 500; }
+
+/* área principal */
+.main { display: grid; min-height: 0; grid-template-columns: minmax(330px, 410px) 1fr;
+  grid-template-rows: auto auto 1fr; grid-template-areas: "board map" "play map" "list map"; }
+.board-area { grid-area: board; padding: 18px 18px 0; }
+.play { grid-area: play; padding: 14px 18px 0; display: grid; gap: 10px; }
+.list-area { grid-area: list; padding: 12px 18px 18px; overflow: auto; min-height: 0; display: grid; gap: 14px; align-content: start; }
+.map-area { grid-area: map; position: relative; min-height: 0; border-left: 1px solid var(--line); background: var(--ocean); overflow: hidden; }
+
+/* painel de partidas */
+.board { background: var(--board); color: var(--board-ink); border-radius: var(--r); padding: 14px 16px 12px; box-shadow: inset 0 0 0 1px var(--board-line); }
+.board-meta { display: flex; justify-content: space-between; gap: 8px; font: 500 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--board-dim); padding-bottom: 10px; border-bottom: 1px dashed var(--board-line); }
+.leg { display: grid; grid-template-columns: 74px 38px 1fr; align-items: center; gap: 8px; padding: 9px 0; }
+.leg .lbl { font: 500 11px/1 var(--font-mono); letter-spacing: .1em; color: var(--board-dim); }
+.leg .code { font: 500 13px/1 var(--font-mono); background: #1d252c; border: 1px solid var(--board-line); border-radius: 4px; padding: 5px 0; text-align: center; }
+.leg .city { font: 800 30px/1 var(--font-display); text-transform: uppercase; letter-spacing: .03em; overflow-wrap: anywhere; }
+.via { display: grid; grid-template-columns: 74px 1fr; gap: 8px; align-items: center; font: 500 12px/1.3 var(--font-mono); color: var(--board-dim); }
+.via .dots { display: flex; gap: 6px; }
+.via .dots i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--board-dim); }
+.via .dots i.on { background: var(--board-ink); border-color: var(--board-ink); }
+
+/* palpite */
+.free-ctl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.chips { display: flex; gap: 4px; }
+.chips button { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 4px 10px; font: 500 13px/1.2 var(--font-mono); }
+.chips button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--panel); }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; font-weight: 500; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: .45; cursor: default; }
+
+.guess-form { position: relative; display: flex; gap: 8px; }
+.guess-form input { flex: 1; min-width: 0; padding: 11px 14px; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--panel); font-size: 16px; }
+.guess-form input:disabled { border-color: var(--line); }
+.sugg { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.14); }
+.sugg[hidden] { display: none; }
+.sugg li { padding: 8px 10px; border-radius: 6px; cursor: pointer; display: flex; gap: 10px; align-items: center; }
+.sugg li[aria-selected="true"] { background: var(--accent-soft); }
+.sugg .cc { font: 500 11px/1 var(--font-mono); color: var(--muted); }
+.msg { min-height: 20px; font-size: 14px; color: var(--muted); }
+.msg.warn { color: var(--t3); }
+.msg.hint { color: var(--ink); }
+.toggle { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); cursor: pointer; }
+.toggle input { margin: 2px 0 0; accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
+.toggle b { color: var(--ink); font-weight: 600; }
+.mask { display: inline-block; padding: 0 6px; border-radius: 4px; background: var(--ink); color: var(--panel); font: 500 11px/1.6 var(--font-mono); letter-spacing: .04em; text-transform: uppercase; vertical-align: 1px; }
+.qflag { display: inline-grid; place-items: center; width: 34px; height: 26px; border-radius: 4px; background: var(--ink); color: var(--panel); font: 800 18px/1 var(--font-display); vertical-align: 3px; }
+.count { display: flex; gap: 14px; font: 500 12px/1 var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count b { color: var(--ink); font-weight: 500; }
+
+/* lista de palpites */
+.guesses { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.guesses li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px 8px 0; background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--c, var(--line)); border-radius: 8px; cursor: pointer; }
+.guesses .n { font: 500 11px/1 var(--font-mono); color: var(--muted); text-align: right; }
+.guesses .nm { font-weight: 600; }
+.guesses .tag { font-size: 12px; color: var(--muted); }
+.guesses li.t0 { --c: var(--t0); } .guesses li.t1 { --c: var(--t1); } .guesses li.t2 { --c: var(--t2); } .guesses li.t3 { --c: var(--t3); }
+.guesses li.new { animation: pop .35s ease-out; }
+@keyframes pop { from { transform: translateY(-4px); opacity: .3; } }
+.empty { font-size: 14px; color: var(--muted); margin: 0; }
+
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; background: var(--c); }
+
+.result { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 10px; }
+.result h2 { margin: 0; font: 800 26px/1.05 var(--font-display); text-transform: uppercase; letter-spacing: .02em; text-wrap: balance; }
+.result p { margin: 0; }
+.route { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 14px; }
+.route .stop { padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); cursor: pointer; border: 0; }
+.route .stop small { color: var(--muted); }
+.route .arr { color: var(--muted); }
+.sub { font: 500 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* trivia */
+.trivia { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--board-ink); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 10px; }
+.trivia h2 { margin: 2px 0 0; font: 800 24px/1.05 var(--font-display); text-transform: uppercase; letter-spacing: .02em; text-wrap: balance; }
+.trivia p { margin: 0; }
+.tv-head { display: grid; gap: 6px; }
+.tv-dots { display: flex; gap: 5px; }
+.tv-dots i { width: 18px; height: 6px; border-radius: 3px; background: var(--line); }
+.tv-dots i.cur { background: var(--ink); } .tv-dots i.ok { background: var(--t0); } .tv-dots i.no { background: var(--t3); }
+.tv-country { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.tv-theme { font: 500 10px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; background: var(--board); color: var(--board-ink); }
+.tv-q { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 600; text-wrap: balance; }
+.tv-opts { display: grid; gap: 6px; }
+.tv-opt { text-align: left; border: 1.5px solid var(--line); background: var(--paper); border-radius: 8px; padding: 10px 12px; font-size: 15px; line-height: 1.3; }
+.tv-opt:not(:disabled):hover { border-color: var(--ink); }
+.tv-opt:disabled { cursor: default; opacity: .75; }
+.tv-opt.right { border-color: var(--t0); background: color-mix(in srgb, var(--t0) 18%, var(--panel)); opacity: 1; font-weight: 600; }
+.tv-opt.wrong { border-color: var(--t3); background: color-mix(in srgb, var(--t3) 14%, var(--panel)); opacity: 1; }
+.tv-exp { font-size: 14px; line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: var(--paper); border-left: 4px solid var(--c); }
+.tv-exp.ok { --c: var(--t0); } .tv-exp.no { --c: var(--t3); }
+.tv-recap { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; line-height: 1.4; }
+.tv-recap li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; }
+.tv-recap em { font-style: normal; font-weight: 600; }
+.tv-recap .tv-mark { font-weight: 700; }
+.tv-recap li.ok .tv-mark { color: var(--t0); } .tv-recap li.no .tv-mark { color: var(--t3); }
+
+/* mapa */
+#map { width: 100%; height: 100%; display: block; touch-action: none; }
+.sphere { fill: var(--ocean); }
+.grat { fill: none; stroke: var(--grat); }
+.c { fill: var(--land); stroke: var(--edge); stroke-width: .6; vector-effect: non-scaling-stroke; stroke-linejoin: round; transition: fill .3s; }
+.c.other { fill: var(--land); opacity: .75; }
+.c.known { cursor: pointer; }
+.c.start, .c.end, .mk.start, .mk.end { fill: var(--accent); }
+.c.t0, .mk.t0 { fill: var(--t0); } .c.t1, .mk.t1 { fill: var(--t1); } .c.t2, .mk.t2 { fill: var(--t2); } .c.t3, .mk.t3 { fill: var(--t3); }
+.c.sol, .mk.sol { fill: var(--accent-soft); stroke: var(--accent); stroke-dasharray: 3 2; stroke-width: 1.2; }
+.c.sel { stroke: var(--ink); stroke-width: 2; }
+.mk { stroke: var(--panel); stroke-width: 1; vector-effect: non-scaling-stroke; fill: var(--edge); }
+.mk.known { cursor: pointer; }
+.dotland { fill: var(--land); stroke: var(--edge); vector-effect: non-scaling-stroke; }
+.lbl-t { font-family: var(--font-body); font-weight: 600; fill: var(--ink); paint-order: stroke; stroke: var(--land); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; text-anchor: middle; dominant-baseline: middle; }
+.routeline { fill: none; stroke: var(--ink); stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 6 5; opacity: .8; pointer-events: none; }
+.edge-line { stroke: var(--ink); stroke-width: 1.4; vector-effect: non-scaling-stroke; opacity: .45; }
+
+.map-tools { position: absolute; right: 12px; top: 12px; display: grid; gap: 6px; }
+.map-tools button { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font-size: 18px; line-height: 1; display: grid; place-items: center; }
+.map-note { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: var(--muted); background: color-mix(in srgb, var(--panel) 80%, transparent); padding: 3px 8px; border-radius: 6px; max-width: calc(100% - 24px); }
+.map-status { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font: 500 12px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; pointer-events: none; }
+
+.card { position: absolute; left: 0; top: 0; bottom: 0; width: min(420px, calc(100% - 56px)); overflow: auto; background: var(--panel); border-right: 1px solid var(--line); box-shadow: 8px 0 30px rgba(0,0,0,.12); padding: 18px 20px 22px; display: grid; grid-auto-rows: max-content; gap: 14px; align-content: start; z-index: 5; }
+.card .x { position: sticky; top: 0; justify-self: end; margin: -8px -8px -40px 0; border: 0; background: var(--panel); border-radius: 999px; font-size: 22px; line-height: 1; width: 34px; height: 34px; color: var(--muted); z-index: 1; }
+.card h3 { margin: 0; font: 800 30px/1 var(--font-display); text-transform: uppercase; letter-spacing: .02em; padding-right: 40px; text-wrap: balance; }
+.card .meta { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.card .chip { display: inline-block; font: 500 11px/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; background: var(--accent-soft); color: var(--ink); margin-top: 8px; }
+.card .chip.t0 { background: var(--t0); color: #fff; } .card .chip.t1 { background: var(--t1); color: #111; } .card .chip.t2 { background: var(--t2); color: #111; } .card .chip.t3 { background: var(--t3); color: #fff; }
+.card .chip.end { background: var(--accent); color: #fff; }
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: clip; }
+.facts div { background: var(--panel); padding: 8px 10px; display: grid; gap: 3px; }
+.facts b { font: 600 15px/1.15 var(--font-body); font-variant-numeric: tabular-nums; }
+.facts span { font: 500 10px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.sec { display: grid; gap: 4px; }
+.sec h4 { margin: 0; font: 500 11px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.sec h4::before { content: ""; width: 14px; height: 3px; border-radius: 2px; background: var(--sc); }
+.sec p { margin: 0; font-size: 14.5px; line-height: 1.58; max-width: 65ch; }
+.sec.s-f { --sc: var(--edge); } .sec.s-c { --sc: #3c8dbc; } .sec.s-d { --sc: #9b6bcc; } .sec.s-e { --sc: #d49a2a; } .sec.s-h { --sc: #b5643c; } .sec.s-p { --sc: #3c9f7c; }
+.nbrs { display: flex; flex-wrap: wrap; gap: 4px; }
+.nbrs button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 2px 9px; font-size: 13px; }
+.card .src { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.45; border-top: 1px solid var(--line); padding-top: 10px; }
+.c { cursor: pointer; }
+.c:hover { filter: brightness(.94); }
+
+/* ajuda */
+.overlay { position: fixed; inset: 0; background: rgba(10, 14, 18, .5); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.overlay[hidden] { display: none; }
+.sheet { background: var(--panel); border-radius: 14px; max-width: 560px; width: 100%; max-height: 90%; overflow: auto; padding: 20px 22px; position: relative; display: grid; gap: 12px; }
+.sheet h2 { margin: 0; font: 800 30px/1 var(--font-display); text-transform: uppercase; }
+.sheet h3 { margin: 6px 0 0; font-size: 15px; }
+.sheet p, .sheet ul { margin: 0; max-width: 65ch; }
+.sheet ul { padding-left: 18px; display: grid; gap: 4px; }
+.sheet .x { position: absolute; right: 12px; top: 12px; border: 0; background: transparent; font-size: 22px; color: var(--muted); }
+
+/* comemoração */
+#fx { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 70; }
+#endpop { z-index: 60; }
+.endpop { text-align: center; justify-items: center; max-width: 420px; }
+.endpop .big { font-size: 44px; line-height: 1; }
+.endpop .actions { display: grid; gap: 8px; width: 100%; }
+.endpop .btn { width: 100%; padding: 12px 16px; font-size: 16px; }
+@keyframes popin { from { transform: translateY(14px) scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
+.endpop { animation: popin .35s cubic-bezier(.2,.9,.3,1.2); }
+@media (prefers-reduced-motion: reduce) { .endpop { animation: none; } }
+
+@media (max-width: 860px) {
+  .app { height: auto; min-height: 100%; }
+  .main { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; grid-template-areas: "board" "play" "map" "list"; }
+  .map-area { height: min(56vh, 480px); border-left: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-top: 14px; }
+  .list-area { overflow: visible; }
+  .card { position: fixed; top: 10vh; left: 0; right: 0; bottom: 0; width: 100%; border-right: 0; border-radius: 16px 16px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,.25); z-index: 40; padding: 16px 16px 28px; }
+  .top { padding: 10px 16px; display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+  .brand { grid-column: 1; grid-row: 1; }
+  .help-btn { grid-column: 2; grid-row: 1; }
+  .modes { grid-column: 1 / -1; grid-row: 2; margin-left: 0; }
+  .modes button { flex: 1; }
+  .board-area, .play, .list-area { padding-left: 16px; padding-right: 16px; }
+  .leg .city { font-size: 26px; }
+}
+@media (max-width: 420px) { .brand small { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">GeoGame <small>rotas por fronteiras</small></div>
+    <nav class="modes" aria-label="Modo de jogo">
+      <button id="mode-daily" type="button" aria-pressed="true">Desafio do dia</button>
+      <button id="mode-free" type="button" aria-pressed="false">Jogo livre</button>
+    </nav>
+    <button id="help-open" class="help-btn" type="button">Como jogar</button>
+  </header>
+
+  <main class="main">
+    <section class="board-area" aria-label="Desafio">
+      <div class="board" id="board">
+        <div class="board-meta"><span id="b-title">Desafio do dia</span><span id="b-date"></span></div>
+        <div class="leg"><span class="lbl">PARTIDA</span><span class="code" id="b-a-code">··</span><span class="city" id="b-a">·······</span></div>
+        <div class="via"><span>VIA</span><span><span class="dots" id="b-dots"></span></span></div>
+        <div class="leg"><span class="lbl">CHEGADA</span><span class="code" id="b-b-code">··</span><span class="city" id="b-b">·······</span></div>
+      </div>
+    </section>
+
+    <section class="play" aria-label="Palpite">
+      <div class="free-ctl" id="free-ctl" hidden>
+        <span>Países no meio:</span>
+        <div class="chips" id="diff-chips">
+          <button type="button" data-k="4" aria-pressed="false">4</button>
+          <button type="button" data-k="5" aria-pressed="false">5</button>
+          <button type="button" data-k="6" aria-pressed="false">6</button>
+          <button type="button" data-k="0" aria-pressed="true">4–6</button>
+        </div>
+        <button id="new-free" class="btn" type="button">Novo desafio</button>
+      </div>
+      <form class="guess-form" id="guess-form" autocomplete="off">
+        <input id="guess" type="text" placeholder="Digite um país (ex.: Alemanha)" aria-label="País" role="combobox" aria-expanded="false" aria-controls="sugg" aria-autocomplete="list" spellcheck="false">
+        <button class="btn primary" id="go" type="submit">Viajar</button>
+        <ul class="sugg" id="sugg" role="listbox" hidden></ul>
+      </form>
+      <div class="msg" id="msg" aria-live="polite">Monte um caminho de países vizinhos ligando a partida à chegada.</div>
+      <label class="toggle" for="challenge"><input type="checkbox" id="challenge" checked> <span><b>Modo desafio</b>: a ficha de um país ainda não descoberto esconde nome, bandeira e capital</span></label>
+      <div class="count"><span>Palpites <b id="c-g">0</b></span><span>Mínimo <b id="c-min">0</b></span><span>Dicas <b id="c-h">0</b></span></div>
+    </section>
+
+    <section class="map-area" aria-label="Mapa">
+      <svg id="map" role="img" aria-label="Mapa-múndi com os países revelados"></svg>
+      <div class="map-status" id="map-status">Carregando mapa…</div>
+      <div class="map-tools">
+        <button type="button" id="z-in" aria-label="Aproximar">+</button>
+        <button type="button" id="z-out" aria-label="Afastar">−</button>
+        <button type="button" id="z-fit" aria-label="Centralizar no desafio">⌖</button>
+      </div>
+      <aside class="card" id="card" hidden aria-label="Ficha do país"></aside>
+      <div class="map-note" id="map-note" hidden></div>
+    </section>
+
+    <section class="list-area" aria-label="Seus palpites">
+      <div class="result" id="result" hidden></div>
+      <div class="trivia" id="trivia" hidden aria-live="polite"></div>
+      <ol class="guesses" id="guesses"></ol>
+      <p class="empty" id="empty">Nenhum palpite ainda. Os países aparecem aqui e no mapa, coloridos pela distância até a rota mais curta.</p>
+      <div class="actions">
+        <button class="btn" id="hint" type="button">Pedir dica</button>
+        <button class="btn" id="reveal" type="button">Mostrar solução</button>
+      </div>
+      <div class="legend">
+        <span style="--c: var(--t0)"><i></i>Na rota mais curta</span>
+        <span style="--c: var(--t1)"><i></i>Desvio de 1</span>
+        <span style="--c: var(--t2)"><i></i>Desvio de 2</span>
+        <span style="--c: var(--t3)"><i></i>Longe</span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="overlay" id="endpop" hidden>
+  <div class="sheet endpop" role="dialog" aria-modal="true" aria-labelledby="endpop-title">
+    <div class="big" id="endpop-emoji" aria-hidden="true">🎉</div>
+    <h2 id="endpop-title"></h2>
+    <p id="endpop-text"></p>
+    <div class="actions" id="endpop-actions"></div>
+  </div>
+</div>
+
+<div class="overlay" id="help" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <button class="x" id="help-close" type="button" aria-label="Fechar">×</button>
+    <h2 id="help-title">Como jogar</h2>
+    <p>Você recebe um país de partida e um de chegada. Digite países, um por vez, até que eles formem uma corrente de vizinhos que ligue os dois. Não há limite de tentativas: o desafio é chegar perto do mínimo.</p>
+    <h3>Cores</h3>
+    <ul>
+      <li><b>Verde</b>: o país está em algum caminho mais curto.</li>
+      <li><b>Amarelo</b>: passar por ele custa 1 país a mais que o mínimo.</li>
+      <li><b>Laranja</b>: custa 2 a mais.</li>
+      <li><b>Vermelho</b>: está longe da rota (ou não tem fronteira terrestre).</li>
+    </ul>
+    <h3>O que conta como fronteira</h3>
+    <ul>
+      <li>Só fronteiras terrestres entre territórios integrais dos países.</li>
+      <li>Territórios ultramarinos e dependências não contam (Guiana Francesa, Gibraltar, bases britânicas em Chipre).</li>
+      <li>Ceuta e Melilla contam (Espanha–Marrocos), assim como Kaliningrado (Rússia–Polônia e Rússia–Lituânia).</li>
+      <li>Pontes e túneis não contam: Reino Unido–França, Dinamarca–Suécia e Singapura–Malásia não são vizinhos.</li>
+      <li>Kosovo, Palestina e Saara Ocidental entram no jogo como países.</li>
+    </ul>
+    <h3>Dicas</h3>
+    <p>“Pedir dica” mostra a inicial do próximo país que falta na rota e com quem ele faz fronteira.</p>
+    <h3>Trivia da rota</h3>
+    <p>Ao fim da partida, responda uma pergunta de múltipla escolha sobre cada país da rota, de partida a chegada, com temas de história, geografia, turismo, cinema, economia e geopolítica. No desafio do dia, as perguntas são as mesmas para todos.</p>
+    <h3>Ficha dos países</h3>
+    <p>Clique em qualquer país do mapa, descoberto ou não, para ler sobre clima e relevo, demografia, economia, história e política. Os nomes dos vizinhos aparecem ao fim da partida.</p>
+    <p>Com o <b>modo desafio</b> ligado (padrão), a ficha de um país que você ainda não descobriu esconde o nome, a bandeira, a capital e os gentílicos, e o texto vira um conjunto de pistas. Tudo é revelado quando você acerta o país ou quando a partida termina.</p>
+    <p class="sub" id="help-stats"></p>
+  </div>
+</div>
+
+<script><!--D3--></script>
+<script><!--DATA--></script>
+<script><!--LOGIC--></script>
+<script><!--STATS--></script>
+<script>window.GEO_INFO = <!--INFO-->;</script>
+<script>window.GEO_QUIZ = <!--QUIZ-->;</script>
+<script><!--APP--></script>
+</body>
+</html>
